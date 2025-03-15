@@ -45,4 +45,4 @@ bin/
 .DS_Store
 
 ### my DATA ###
-!**/src/main/resources
+src/main/resources

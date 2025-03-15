@@ -20,35 +20,60 @@ import kotlinx.datetime.daysUntil
 import kotlin.LazyThreadSafetyMode.NONE
 import ContinuousSelectionHelper.isInDateBetweenSelection
 import ContinuousSelectionHelper.isOutDateBetweenSelection
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.desktop.ui.tooling.preview.Preview
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.*
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.runtime.*
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.composed
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Outline
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.window.*
 import com.kizitonwose.calendar.core.*
+import com.sun.org.apache.xalan.internal.lib.ExsltDatetime.dayAbbreviation
+import com.sun.org.apache.xalan.internal.lib.ExsltDatetime.year
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.datetime.format
+import kotlinx.datetime.format.DateTimeFormat
+import kotlinx.datetime.format.DayOfWeekNames
+import kotlinx.datetime.format.FormatStringsInDatetimeFormats
+import kotlinx.datetime.format.Padding
+import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
 import java.util.*
 
 
-private val primaryColor = Color.Black.copy(alpha = 0.9f)
-private val selectionColor = primaryColor
-private val continuousSelectionColor = Color.LightGray.copy(alpha = 0.3f)
+private val selectionColor = Color(10,21,75).copy(alpha = 0.9f)
+private val continuousSelectionColor = Color(11,64,148).copy(alpha = 0.2f)
 
 fun main() = application {
+    Window(
+        onCloseRequest = ::exitApplication,
+        resizable = false,
+        title = "Tide Generator",
+        icon =  painterResource("tide.ico"),
+        state = rememberWindowState(width = 400.dp, height = 530.dp ))
+    {
+            App()
+    } //Window
+}
+
+@Composable
+fun App(){
     val coroutineScope = rememberCoroutineScope()   // 현재 스코프
-    val xlsRstMap = remember{ mutableStateOf(JoSeockXLS().commonMap.toMutableMap()) }   // 현재 스코프
+    val xlsRstMap = remember{ mutableStateOf(JoSeockXLS().commonMap.toMutableMap()) }
 
     val currentMonth = remember { YearMonth.now() }
     val startMonth = remember { currentMonth.minusMonths(2) }
@@ -56,84 +81,92 @@ fun main() = application {
     val today = remember { LocalDate.now() }
     var selection by remember { mutableStateOf(DateSelection()) }
     val daysOfWeek = remember { daysOfWeek() }
-    Window(
-        onCloseRequest = ::exitApplication,
-        resizable = true,
-        title = "502A함 조석표",
-        state = rememberWindowState(
-            width = 400.dp, height = 600.dp)) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(Color.White),
-            ) {
-                Column {
-                    val state = rememberCalendarState(
-                        startMonth = startMonth,
-                        endMonth = endMonth,
-                        firstVisibleMonth = currentMonth,
-                        firstDayOfWeek = daysOfWeek.first(),
-                    )
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.White),
+    ) {
+        Column {
+            val state = rememberCalendarState(
+                startMonth = startMonth,
+                endMonth = endMonth,
+                firstVisibleMonth = currentMonth,
+                firstDayOfWeek = daysOfWeek.first(),
+            )
 
-                    //상단, 요일표시 + 선택날짜count 전시
-                    CalendarTop(
-                        daysOfWeek = daysOfWeek,
+            //상단, 요일표시 + 선택날짜count 전시
+            CalendarTop(
+                daysOfWeek = daysOfWeek,
+                selection = selection,
+                close = {},
+                clearDates = { selection = DateSelection() },
+            )
+
+            // 달력
+            VerticalCalendar(
+                state = state,
+                monthHeader = { month -> MonthHeader(month) },
+                dayContent = { value ->
+                    Day(
+                        value,
+                        today = today,
                         selection = selection,
-                        close = {},
-                        clearDates = { selection = DateSelection() },
-                    )
-
-                    // 달력
-                    VerticalCalendar(
-                        state = state,
-                        contentPadding = PaddingValues(bottom = 100.dp),
-                        dayContent = { value ->
-                            Day(
-                                value,
-                                today = today,
-                                selection = selection,
-                            ) { day ->
-                                if (day.position == DayPosition.MonthDate && day.date >= today) {
-                                    selection = ContinuousSelectionHelper.getSelection(
-                                        clickedDate = day.date,
-                                        dateSelection = selection,
-                                    )
-                                }
-                            }
-                        },
-                        monthHeader = { month -> MonthHeader(month) },
-                    )
-                }
-
-
-                //하단바
-                CalendarBottom(
-                    modifier = Modifier
-                        .wrapContentHeight()
-                        .fillMaxWidth()
-                        .background(Color.White)
-                        .align(Alignment.BottomCenter),
-                    selection = selection,
-                    save = {
-                        val (startDate, endDate) = selection
-                        if (startDate != null && endDate != null) {
-                            coroutineScope.launch {
-                                xlsRstMap.value = xlsRstMap.value.toMutableMap().apply {this["rstTitle"] = "처리중입니다..."}
-                                xlsRstMap.value["rstMessage"] = "조석표를 엑셀로 만들고 있어요."
-                                xlsRstMap.value = withContext(Dispatchers.IO) {
-                                    JoSeockXLS().downloadXLS(startDate.toString(), endDate.toString())
-                                }
-                            }
-
+                    ) { day ->
+                        if (day.position == DayPosition.MonthDate && day.date >= today) {
+                            selection = ContinuousSelectionHelper.getSelection(
+                                clickedDate = day.date,
+                                dateSelection = selection,
+                            )
                         }
-                    },
-                )
-            } // Column
-        if(!xlsRstMap.value["rstTitle"].isNullOrBlank()){
-            makeDialog(xlsRstMap.value, {xlsRstMap.value = JoSeockXLS().commonMap.toMutableMap()})
-        }
+                    }
+                },
+                contentPadding = PaddingValues(bottom = 100.dp),
+            ) // end VerticalCalendar
+        } // end Column
 
-    } //Window
+
+        //하단바 보이기숨기기
+        AnimatedVisibility(
+            visible =  selection.daysBetween!=null,
+            modifier = Modifier
+                .background(Color(221, 235, 247) )
+                .wrapContentHeight()
+                .fillMaxWidth().align(Alignment.BottomCenter),
+        ) {
+            //하단바
+            CalendarBottom(
+                modifier = Modifier
+                    .wrapContentHeight()
+                    .fillMaxWidth()
+                    .background(
+                        Brush.verticalGradient(
+                            colors = listOf(
+                                Color(238,249,252),  // 하단
+                                Color(255,255,255),  // 상단 색상
+                            )
+                        ))
+                        //Color(221, 235, 247) )//.background(Color.White)
+                    .align(Alignment.BottomCenter),
+                selection = selection,
+                save = {
+                    val (startDate, endDate) = selection
+                    if (startDate != null && endDate != null) {
+                        coroutineScope.launch {
+                            xlsRstMap.value = xlsRstMap.value.toMutableMap().apply { this["rstTitle"] = "처리중입니다..." }
+                            xlsRstMap.value["rstMessage"] = "조석표를 엑셀로 만들고 있어요."
+                            xlsRstMap.value = withContext(Dispatchers.IO) {
+                                JoSeockXLS().downloadXLS(startDate.toString(), endDate.toString())
+                            }
+                        }
+                    }
+                }
+            ) // end CalendarBottom
+        } // AnimatedVisibility
+    } // Box
+
+    if(!xlsRstMap.value["rstTitle"].isNullOrBlank()){
+        makeDialog(xlsRstMap.value, {xlsRstMap.value = JoSeockXLS().commonMap.toMutableMap()})
+    }
 }
 
 @Composable
@@ -172,7 +205,8 @@ private fun Day(
 
 @Composable
 fun DaysOfWeekTitle(daysOfWeek: List<DayOfWeek>) {
-    Row(modifier = Modifier.fillMaxWidth()) {
+    Row(
+        modifier = Modifier.fillMaxWidth()) {
         for (dayOfWeek in daysOfWeek) {
             Text(
                 modifier = Modifier.weight(1f),
@@ -217,7 +251,7 @@ private fun CalendarTop(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(top = 6.dp, bottom = 10.dp),
+                .padding(top = 6.dp, bottom = 1.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             Row(
@@ -225,8 +259,8 @@ private fun CalendarTop(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 val daysBetween = selection.daysBetween
-                val text =  if (daysBetween == null) "출동일정 입력"
-                            else "${daysBetween}박 ${daysBetween+1}일 출동"
+                val text =  if (daysBetween == null) "일정 입력"
+                            else "${daysBetween}박 ${daysBetween+1}일간"
 
                 Text(
                     modifier = Modifier.padding(horizontal = 14.dp),
@@ -252,7 +286,15 @@ private fun CalendarTop(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(top = 4.dp),
+                    .background(
+                        Brush.verticalGradient(
+                            colors = listOf(
+                                Color(255,255,255),  // 상단 색상
+                                Color(238,249,252),  // 하단
+                            )
+                        )
+                    )
+                    .padding(top = 4.dp, bottom = 5.dp),
             ) {
                 DaysOfWeekTitle(daysOfWeek = daysOfWeek)
 //                for (dayOfWeek in daysOfWeek) {
@@ -300,13 +342,12 @@ private fun CalendarBottom(
             )
             Spacer(modifier = Modifier.weight(1f))
             Button(
-                modifier = Modifier
-                    .height(40.dp)
-                    .width(100.dp),
+                modifier = Modifier.height(40.dp).width(100.dp),
                 onClick = save,
+                colors = ButtonDefaults.buttonColors(Color(10,21,75)),
                 enabled = selection.daysBetween != null,
             ) {
-                Text(text = "생성!")
+                Text(text = "생성!", color = Color.White, fontWeight = FontWeight.Bold)
             }
         }
     }
@@ -323,11 +364,19 @@ data class DateSelection(val startDate: LocalDate? = null, val endDate: LocalDat
     }
 }
 
-private val rangeFormatter = LocalDate.Formats.ISO
+val rangeFormatter: DateTimeFormat<LocalDate> = LocalDate.Format {
+    year()
+    chars(". ")
+    monthNumber()
+    chars(". ")
+    dayOfMonth()
+    chars(". ")
+    dayOfWeek(DayOfWeekNames(listOf("(월)", "(화)", "(수)", "(목)", "(금)", "(토)", "(일)")))
+}
+//private val rangeFormatter = LocalDate.Formats.ISO
 fun dateRangeDisplayText(startDate: LocalDate, endDate: LocalDate): String {
     return "${rangeFormatter.format(startDate)} ~ ${rangeFormatter.format(endDate)}"
 }
-
 
 object ContinuousSelectionHelper {
     fun getSelection(

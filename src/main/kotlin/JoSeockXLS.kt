@@ -42,7 +42,6 @@ class JoSeockXLS {
         try {
             val data = readCsvFile(tideFilePath)
             val map = HashMap<String, MutableList<List<String>>>()
-
             val listDate = getDateRange(startDate, endDate)
             listDate.forEach { map[it] = mutableListOf() }
 
@@ -370,7 +369,7 @@ class JoSeockXLS {
     }
 
 
-    fun getMoonPhasePath(dateString: String): String {
+    private fun getMoonPhasePath(dateString: String): String {
         val formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd")
         val date = LocalDate.parse(dateString, formatter)
 
