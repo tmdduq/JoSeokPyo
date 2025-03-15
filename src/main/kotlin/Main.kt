@@ -43,6 +43,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.datetime.format.DateTimeFormat
 import kotlinx.datetime.format.DayOfWeekNames
+import java.awt.Desktop
+import java.io.File
 import java.time.format.TextStyle
 import java.util.*
 
@@ -148,6 +150,11 @@ fun App(){
                             xlsRstMap.value["rstMessage"] = "조석표를 엑셀로 만들고 있어요."
                             xlsRstMap.value = withContext(Dispatchers.IO) {
                                 JoSeockXLS().downloadXLS(startDate.toString(), endDate.toString())
+                            }
+                            xlsRstMap.value["fileName"]?.let {
+                                val xlsFile = File(it)
+                                if (xlsFile.exists() && Desktop.isDesktopSupported())
+                                    Desktop.getDesktop().open(xlsFile)
                             }
                         }
                     }

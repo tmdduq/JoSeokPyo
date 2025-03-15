@@ -23,6 +23,7 @@ class JoSeockXLS {
         "rstTitle" to null,
         "rstMessage" to null,
         "errorMessage" to null,
+        "fileName" to null
     )
 
     private val moonPhasePath = "src/main/resources/moonPhase"
@@ -281,10 +282,7 @@ class JoSeockXLS {
                 e.printStackTrace()
             }
         }
-        val xlsFile = File("$desktopPath/$fileName")
         try {
-            if (xlsFile.exists() && Desktop.isDesktopSupported())
-                Desktop.getDesktop().open(xlsFile)
         } catch (e: Exception) {
             rstMap["rstTitle"] = "오류가 발생했습니다."
             rstMap["rstMessage"] = "파일을 실행할 수 없네요. 바탕화면에 조석표.xlxs를 직접 실행해보세요."
@@ -294,6 +292,7 @@ class JoSeockXLS {
         rstMap["rstCode"] = "1"
         rstMap["rstTitle"] = "조석표를 만들었어요!"
         rstMap["rstMessage"] = "파일은 바탕화면에 저장됐어요. \n$fileName"
+        rstMap["fileName"] = "$desktopPath/$fileName"
         return rstMap
     }
 
