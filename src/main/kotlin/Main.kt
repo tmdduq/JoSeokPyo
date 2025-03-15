@@ -21,13 +21,11 @@ import kotlin.LazyThreadSafetyMode.NONE
 import ContinuousSelectionHelper.isInDateBetweenSelection
 import ContinuousSelectionHelper.isOutDateBetweenSelection
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.desktop.ui.tooling.preview.Preview
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.*
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.runtime.*
-import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.composed
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
@@ -40,17 +38,11 @@ import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.window.*
 import com.kizitonwose.calendar.core.*
-import com.sun.org.apache.xalan.internal.lib.ExsltDatetime.dayAbbreviation
-import com.sun.org.apache.xalan.internal.lib.ExsltDatetime.year
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import kotlinx.datetime.format
 import kotlinx.datetime.format.DateTimeFormat
 import kotlinx.datetime.format.DayOfWeekNames
-import kotlinx.datetime.format.FormatStringsInDatetimeFormats
-import kotlinx.datetime.format.Padding
-import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
 import java.util.*
 
