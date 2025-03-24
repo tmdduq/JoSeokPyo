@@ -1,5 +1,3 @@
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -21,7 +19,7 @@ import kotlin.LazyThreadSafetyMode.NONE
 import ContinuousSelectionHelper.isInDateBetweenSelection
 import ContinuousSelectionHelper.isOutDateBetweenSelection
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.foundation.border
+import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.*
 import androidx.compose.material.icons.filled.Refresh
@@ -47,6 +45,7 @@ import java.awt.Desktop
 import java.io.File
 import java.time.format.TextStyle
 import java.util.*
+import kotlin.collections.ArrayList
 
 
 private val selectionColor = Color(10,21,75).copy(alpha = 0.9f)
@@ -67,14 +66,24 @@ fun main() = application {
 @Composable
 fun App(){
     val coroutineScope = rememberCoroutineScope()   // 현재 스코프
-    val xlsRstMap = remember{ mutableStateOf(JoSeockXLS().commonMap.toMutableMap()) }
+    val xlsRstMap = remember{ mutableStateOf(JoSeockXLS().commonMap.toMutableMap()) } // 엑셀생성 결과Map
+    val regionList = remember { mutableStateOf( emptyMap<String, ArrayList<String>>() ) } // 모든 지점 List
 
-    val currentMonth = remember { YearMonth.now() }
-    val startMonth = remember { currentMonth.minusMonths(2) }
-    val endMonth = remember { currentMonth.plusMonths(6) }
-    val today = remember { LocalDate.now() }
-    var selection by remember { mutableStateOf(DateSelection()) }
+    val selectedRegionList = remember { mutableStateOf( mutableListOf<String>()  ) } //선택된 지점 List
+
+    val currentMonth = remember { YearMonth.now() } //첫화면에 표시할 월
+    val today = remember { LocalDate.now() } // 오늘날짜
+    val startMonth = remember { currentMonth.minusMonths(2) } //과거 2달치 달력부터 출력
+    val endMonth = remember { currentMonth.plusMonths(6) } // 미래 6개월치 달력까지 출력
+    var selection by remember { mutableStateOf(DateSelection()) } // selection : (startDate, endDate)
     val daysOfWeek = remember { daysOfWeek() }
+
+    //대상지점들 불러오기
+    LaunchedEffect(Unit) {
+        JoSeockXLS().readRegion()?.let {
+            selectedRegionList.value = it.toMutableList()}
+    }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -88,11 +97,14 @@ fun App(){
                 firstDayOfWeek = daysOfWeek.first(),
             )
 
-            //상단, 요일표시 + 선택날짜count 전시
+            //상단, 지점명 + 요일명 전시
             CalendarTop(
                 daysOfWeek = daysOfWeek,
                 selection = selection,
-                close = {},
+                selectedRegionList = selectedRegionList.value,
+                setRegion = {
+                    coroutineScope.launch{ regionList.value = JoSeockXLS().getRegionList() }
+                },
                 clearDates = { selection = DateSelection() },
             )
 
@@ -121,10 +133,8 @@ fun App(){
 
         //하단바 보이기숨기기
         AnimatedVisibility(
-            visible =  selection.daysBetween!=null,
-            modifier = Modifier
-                .background(Color(221, 235, 247) )
-                .wrapContentHeight()
+            visible =  (selection.daysBetween!=null) && selectedRegionList.value.isNotEmpty(),
+            modifier = Modifier.background(Color(221, 235, 247) ).wrapContentHeight()
                 .fillMaxWidth().align(Alignment.BottomCenter),
         ) {
             //하단바
@@ -149,7 +159,7 @@ fun App(){
                             xlsRstMap.value = xlsRstMap.value.toMutableMap().apply { this["rstTitle"] = "처리중입니다..." }
                             xlsRstMap.value["rstMessage"] = "조석표를 엑셀로 만들고 있어요."
                             xlsRstMap.value = withContext(Dispatchers.IO) {
-                                JoSeockXLS().downloadXLS(startDate.toString(), endDate.toString())
+                                JoSeockXLS().downloadXLS(startDate.toString(), endDate.toString(), selectedRegionList.value)
                             }
                             xlsRstMap.value["fileName"]?.let {
                                 val xlsFile = File(it)
@@ -161,6 +171,14 @@ fun App(){
                 }
             ) // end CalendarBottom
         } // AnimatedVisibility
+
+        if(regionList.value.isNotEmpty()) {
+            regionListView(regionList.value, onClose = {
+                selectedRegionList.value = it.toMutableList()
+                regionList.value = emptyMap<String, ArrayList<String>>()
+            }, selectedRegionList2 = selectedRegionList.value)
+
+        }
     } // Box
 
     if(!xlsRstMap.value["rstTitle"].isNullOrBlank()){
@@ -201,6 +219,7 @@ private fun Day(
         )
     }
 }
+
 
 @Composable
 fun DaysOfWeekTitle(daysOfWeek: List<DayOfWeek>) {
@@ -243,7 +262,8 @@ private fun CalendarTop(
     modifier: Modifier = Modifier,
     daysOfWeek: List<DayOfWeek>,
     selection: DateSelection,
-    close: () -> Unit,
+    selectedRegionList: MutableList<String>,
+    setRegion: () -> Unit,
     clearDates: () -> Unit,
 ) {
     Column(modifier.fillMaxWidth()) {
@@ -258,15 +278,13 @@ private fun CalendarTop(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 val daysBetween = selection.daysBetween
-                val text =  if (daysBetween == null) "일정 입력"
-                            else "${daysBetween}박 ${daysBetween+1}일간"
-
-                Text(
+                val text =  if (selectedRegionList.isEmpty()) "추출할 지역을 선택해주세요."
+                            else "${selectedRegionList[0]} 등 ${selectedRegionList.size}개 지점"
+                Button(
                     modifier = Modifier.padding(horizontal = 14.dp),
-                    text = text,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 24.sp,
-                )
+                    onClick = {setRegion()},
+                    colors= ButtonDefaults.buttonColors(Color(228,228,244,)),
+                ){ Text(text, fontWeight = FontWeight.Bold, fontSize = 12.sp,) }
 
                 Spacer(modifier = Modifier.weight(1f))
                 Text("made by Osy :)")
@@ -364,12 +382,7 @@ data class DateSelection(val startDate: LocalDate? = null, val endDate: LocalDat
 }
 
 val rangeFormatter: DateTimeFormat<LocalDate> = LocalDate.Format {
-    year()
-    chars(". ")
-    monthNumber()
-    chars(". ")
-    dayOfMonth()
-    chars(". ")
+    year() ; chars(". ") ; monthNumber() ; chars(". ") ; dayOfMonth() ; chars(". ")
     dayOfWeek(DayOfWeekNames(listOf("(월)", "(화)", "(수)", "(목)", "(금)", "(토)", "(일)")))
 }
 //private val rangeFormatter = LocalDate.Formats.ISO
@@ -542,6 +555,8 @@ fun Modifier.backgroundHighlight(
 }
 
 
+
+
 @Composable
 fun makeSnackBar(text:String, closeClick:()->Unit){
     Column(
@@ -605,5 +620,107 @@ fun makeDialog(rstMap : MutableMap<String, String?>, onClose:()-> Unit){
                 }
             }
         }
+    }
+}
+
+
+// regionListView : 주먹구구식 추가 기능이라 코딩구조가 조화롭지 않음
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+fun regionListView(
+    map : Map<String, ArrayList<String>>,
+    selectedRegionList2 : MutableList<String>,
+    onClose:(selectedRegionList : MutableList<String>)-> Unit){
+    var selectedRegionList by remember { mutableStateOf( selectedRegionList2  ) }
+    val selectedChoSeong = remember { mutableStateOf("")  }
+    val scrollState = rememberScrollState()
+
+    Dialog(
+        onDismissRequest = {  },
+        properties = DialogProperties(dismissOnClickOutside = true)
+    ) {
+        Surface(shape = RoundedCornerShape(8.dp), color = Color.White) {
+            Column(
+                modifier = Modifier.padding(16.dp).heightIn(max = 400.dp)
+                    .defaultMinSize(minWidth = 500.dp, minHeight = 100.dp),
+            ) {
+                FlowRow(Modifier.heightIn(max=100.dp).
+                    verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.Center, horizontalArrangement = Arrangement.Center) {
+                    selectedRegionList.forEach {
+                        Button(
+                            modifier = Modifier.height(40.dp).padding(5.dp),
+                            onClick = {
+                                val tList = selectedRegionList.toMutableList()
+                                if (it in selectedRegionList) tList.remove(it)
+                                selectedRegionList = tList.toMutableList()
+                            },
+                            colors = ButtonDefaults.buttonColors(Color(80, 21, 175))
+                        ) { Text(text = it, color = Color.White, fontWeight = FontWeight.Bold) }
+                    }
+                }
+                Divider(thickness = 3.dp)
+
+                Box {
+                    Column {
+                        FlowRow(maxItemsInEachRow = 4, verticalArrangement = Arrangement.Center, horizontalArrangement = Arrangement.Start) {
+                            map.keys.forEach {
+                                AnimatedVisibility(selectedChoSeong.value == "") {
+                                    Button(
+                                        modifier = Modifier.height(40.dp).fillMaxWidth(0.24f).padding(5.dp),
+                                        onClick = { selectedChoSeong.value = it },
+                                        colors = ButtonDefaults.buttonColors(Color(80, 121, 75)),
+                                    ) { Text(text = it, color = Color.White, fontWeight = FontWeight.Bold) }
+                                }
+                            }
+                            AnimatedVisibility(selectedChoSeong.value == "") {
+                                Button(
+                                    modifier = Modifier.height(40.dp).fillMaxWidth(0.24f).padding(5.dp),
+                                    onClick = {
+                                        onClose(selectedRegionList)
+                                        JoSeockXLS().saveRegion(selectedRegionList)
+                                              },
+                                    colors = ButtonDefaults.buttonColors(Color(10,21,75)),
+                                ) {
+                                    Text(text = "저장", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                }
+                            }
+                        }
+                    }
+                    Column {
+                        FlowRow(
+                            modifier = Modifier.fillMaxWidth().verticalScroll(scrollState),
+                            maxItemsInEachRow = 4, horizontalArrangement = Arrangement.Center, verticalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            map[selectedChoSeong.value]?.forEach {
+                                if (it in selectedRegionList) return@forEach
+                                AnimatedVisibility(selectedChoSeong.value != "") {
+                                    Button(
+                                        modifier = Modifier.height(40.dp).wrapContentWidth().padding(5.dp),
+                                        onClick = {
+                                            val tList = selectedRegionList.toMutableList()
+                                            if (it in selectedRegionList) tList.remove(it)
+                                            else if(selectedRegionList.size < 6) tList.add(it)
+                                            selectedRegionList = tList.toMutableList()
+                                        },
+                                        colors = if (it in selectedRegionList) ButtonDefaults.buttonColors(Color(80, 21, 175))
+                                                 else ButtonDefaults.buttonColors(Color(228,228,244,)),
+                                    ) { Text(text = it, color = Color.Black, fontWeight = FontWeight.Bold) }
+
+                                }
+                            }
+                            AnimatedVisibility(selectedChoSeong.value != "") {
+                                Button(
+                                    modifier = Modifier.height(40.dp).wrapContentWidth().padding(5.dp),
+                                    onClick = { selectedChoSeong.value = "" },
+                                    colors = ButtonDefaults.buttonColors(Color(10,21,75)),
+                                ) { Text(text = "확인", color = Color.White, fontWeight = FontWeight.Bold) }
+                            }
+                        }
+                    }
+                } // box
+
+            }
+        } //surface
     }
 }
